@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ビートマニア風ゲーム</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #333;
+            box-shadow: 0 0 20px #0ff;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const LANE_WIDTH = 100;
+        const NOTE_HEIGHT = 20;
+        const NOTE_SPEED = 5;
+        const HIT_ZONE_Y = 500;
+        const LANE_COLORS = ['#ff0000', '#00ff00', '#0000ff', '#ffff00'];
+        const KEY_BINDINGS = ['D', 'F', 'J', 'K'];
+
+        let score = 0;
+        let combo = 0;
+        let notes = [];
+        let effects = [];
+
+        function drawBackground() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw lanes
+            for (let i = 0; i < 4; i++) {
+                ctx.fillStyle = LANE_COLORS[i];
+                ctx.globalAlpha = 0.3;
+                ctx.fillRect(200 + i * LANE_WIDTH, 0, LANE_WIDTH, canvas.height);
+                ctx.globalAlpha = 1;
+            }
+
+            // Draw hit zone
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(200, HIT_ZONE_Y, LANE_WIDTH * 4, 5);
+
+            // Draw key bindings
+            ctx.font = '24px Arial';
+            ctx.fillStyle = '#fff';
+            for (let i = 0; i < 4; i++) {
+                ctx.fillText(KEY_BINDINGS[i], 240 + i * LANE_WIDTH, 550);
+            }
+        }
+
+        function drawNotes() {
+            notes.forEach(note => {
+                ctx.fillStyle = LANE_COLORS[note.lane];
+                ctx.fillRect(200 + note.lane * LANE_WIDTH, note.y, LANE_WIDTH, NOTE_HEIGHT);
+            });
+        }
+
+        function drawScore() {
+            ctx.font = '30px Arial';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(`Score: ${score}`, 20, 40);
+            ctx.fillText(`Combo: ${combo}`, 20, 80);
+        }
+
+        function createNote() {
+            if (Math.random() < 0.03) {
+                notes.push({
+                    lane: Math.floor(Math.random() * 4),
+                    y: 0
+                });
+            }
+        }
+
+        function updateNotes() {
+            notes = notes.filter(note => {
+                note.y += NOTE_SPEED;
+                if (note.y > canvas.height) {
+                    combo = 0;
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        function checkHit(lane) {
+            const hitNote = notes.find(note => 
+                note.lane === lane && 
+                note.y >= HIT_ZONE_Y - 20 && 
+                note.y <= HIT_ZONE_Y + 20
+            );
+
+            if (hitNote) {
+                notes = notes.filter(note => note !== hitNote);
+                score += 100 * (combo + 1);
+                combo++;
+                createHitEffect(lane);
+            } else {
+                combo = 0;
+            }
+        }
+
+        function createHitEffect(lane) {
+            effects.push({
+                x: 250 + lane * LANE_WIDTH,
+                y: HIT_ZONE_Y,
+                radius: 30,
+                color: LANE_COLORS[lane],
+                alpha: 1,
+                particles: []
+            });
+
+            // パーティクルエフェクトの追加
+            for (let i = 0; i < 20 + combo; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5 + 2;
+                effects[effects.length - 1].particles.push({
+                    x: 0,
+                    y: 0,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 5 + 2,
+                    color: LANE_COLORS[lane],
+                    alpha: 1
+                });
+            }
+        }
+
+        function updateAndDrawEffects() {
+            effects = effects.filter(effect => {
+                effect.radius += 2;
+                effect.alpha -= 0.05;
+
+                if (effect.alpha > 0) {
+                    ctx.globalAlpha = effect.alpha;
+                    ctx.beginPath();
+                    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = effect.color;
+                    ctx.fill();
+
+                    // パーティクルの更新と描画
+                    effect.particles = effect.particles.filter(particle => {
+                        particle.x += particle.vx;
+                        particle.y += particle.vy;
+                        particle.alpha -= 0.02;
+
+                        if (particle.alpha > 0) {
+                            ctx.globalAlpha = particle.alpha;
+                            ctx.beginPath();
+                            ctx.arc(effect.x + particle.x, effect.y + particle.y, particle.radius, 0, Math.PI * 2);
+                            ctx.fillStyle = particle.color;
+                            ctx.fill();
+                            return true;
+                        }
+                        return false;
+                    });
+
+                    return true;
+                }
+                return false;
+            });
+
+            ctx.globalAlpha = 1;
+        }
+
+        function gameLoop() {
+            drawBackground();
+            createNote();
+            updateNotes();
+            drawNotes();
+            updateAndDrawEffects();
+            drawScore();
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener('keydown', (event) => {
+            const lane = KEY_BINDINGS.indexOf(event.key.toUpperCase());
+            if (lane !== -1) {
+                checkHit(lane);
+            }
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
